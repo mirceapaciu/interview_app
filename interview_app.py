@@ -56,9 +56,48 @@ def generate_questions(applied_for_position: str, question_count: int)->List[str
     
     questions: List[str] = response.output_parsed.questions
     return questions
+
+def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:    
+    if not use_AI:
+        return ["No feedback possible without AI"] * len(questions)
+
+    feedback = []
+
+    for q, a in zip(questions, answers):
+        response = client.responses.parse(
+            model="gpt-4o",
+            input=[
+                {"role": "system", "content": f"You are an expert hiring manager providing feedback on interview answers."},
+                {"role": "user", "content": f"""Task: Provide constructive feedback on the following interview answer.
+                    Question: {q}
+                    Answer: {a}
+                    
+                    Guidelines:
+                    - Start with a positive note.
+                    - Highlight 2-3 strengths in the answer.
+                    - Suggest 2-3 specific areas for improvement.
+                    - Be concise and professional.
+                    
+                    Example output:
+                    ```
+                    Positive: Great enthusiasm and clear communication.
+                    Strengths: Strong problem-solving skills, relevant experience, good cultural fit.
+                    Improvements: Provide more specific examples, quantify achievements, avoid filler words.
+                    ```
+                    
+                    Provide the feedback in a similar structured format."""}
+            ],
+            temperature=1.0,
+            top_p=0.9,
+            max_output_tokens=300,
+            text_format=str
+        )
+        feedback.append(response.output_parsed)
+
+    return feedback
     
 
-
+############################## MAIN ##############################
 st.set_page_config(page_title="Interview Simulator", page_icon="🎤", layout="centered")
 
 # -----------------------------
@@ -67,20 +106,26 @@ st.set_page_config(page_title="Interview Simulator", page_icon="🎤", layout="c
 if "step" not in st.session_state:
     st.session_state.step = 0
 
-if "question_number" not in st.session_state:
-    st.session_state.question_number = 0 
+if "step" not in st.session_state:
+    st.session_state.step = 0 
 
 if "applied_for_position" not in st.session_state:
     st.session_state.applied_for_position = default_position
 
-if "questions" not in st.session_state or st.session_state.questions == {}:
+if "questions" not in st.session_state:
     st.session_state.questions = []
 
 if "answers" not in st.session_state:
-    st.session_state.answers = {}
+    st.session_state.answers = []
+
+if "feedback" not in st.session_state:
+    st.session_state.feedback = []
 
 if "finished" not in st.session_state:
     st.session_state.finished = False
+
+if "show_results" not in st.session_state:
+    st.session_state.show_results = False
 
 st.title("🎤 Interview Simulator")
 
@@ -95,45 +140,57 @@ if step == 0:
     if st.button("Generate Questions"):
         st.session_state.questions = generate_questions(st.session_state.applied_for_position, question_count)
         st.session_state.step += 1
-        st.session_state.question_number = 1
         st.session_state.answers = {}
         st.session_state.finished = False
         st.rerun()
 else:
     # Move through questions
-    question_number = st.session_state.question_number
     st.caption(f"Answer {question_count} interview questions for the position: {st.session_state.applied_for_position}")
 
-    if not st.session_state.finished:
-        q = safe_get(st.session_state.questions, question_number-1, "No question found")
-        st.subheader(f"Question {question_number}/{question_count}")
+    if not st.session_state.finished or st.session_state.show_results:
+        q = safe_get(st.session_state.questions, step-1, "No question found")
+        st.subheader(f"Question {step}/{question_count}")
         st.markdown(f"**{q}**")
-        default_value = safe_get(st.session_state.answers, question_number-1, "")
-        ans = st.text_area("Your answer:", value=default_value, height=180, key=f"ans_{question_number-1}")
+        saved_answer = safe_get(st.session_state.answers, step-1, "")
         
+        if st.session_state.show_results:
+            feedback = safe_get(st.session_state.feedback, step-1, "")
+            st.markdown(f"**Your answer:**\n\n{saved_answer}")
+            st.markdown(f"**Feedback:**\n\n{feedback}")
+        else:
+            ans = st.text_area("Your answer:", value=saved_answer, height=180, key=f"ans_{step-1}")
+
         cols = st.columns([1,1,1])
 
-        if st.session_state.step > 0 and cols[1].button("← Previous"):
-            st.session_state.answers[question_number-1] = ans
+        if step > 1 and cols[1].button("← Previous"):
+            if not st.session_state.show_results:
+                st.session_state.answers[step-1] = ans
             st.session_state.step -= 1
-            st.session_state.question_number -= 1
             st.rerun()
-        if question_number < question_count:
+        if step < question_count:
             if cols[2].button("Next →"):
-                st.session_state.answers[question_number-1] = ans
+                if not st.session_state.show_results:
+                    st.session_state.answers[step-1] = ans
                 st.session_state.step += 1
-                st.session_state.question_number += 1
                 st.rerun()
         else:
-            if cols[2].button("Finish✅"):
-                st.session_state.answers[question_number-1] = ans
-                st.session_state.finished = True
+            if not st.session_state.show_results:
+                if cols[2].button("Finish✅"):
+                    # st.session_state.answers[step-1] = ans
+                    st.session_state.finished = True
+                    st.rerun()
+
+        if st.session_state.show_results:
+            if cols[2].button("Start over"):
+                st.session_state.step = 0
+                st.session_state.finished = False
+                st.session_state.show_results = False
+                st.session_state.questions = {}
+                st.session_state.answers = {}
                 st.rerun()
     else:
-        col1, col2 = st.columns([1,1])
-        if col1.button("Start over"):
-            st.session_state.step = 0
-            st.session_state.finished = False
-            st.session_state.questions = {}
-            st.session_state.answers = {}
-            st.rerun()
+        # Finished - show results
+        st.session_state.show_results = True
+        st.session_state.feedback = generate_feedback(st.session_state.questions, st.session_state.answers)
+        st.session_state.step = 1
+        st.rerun()        
