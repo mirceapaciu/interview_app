@@ -24,19 +24,30 @@ def generate_questions(question_count: int)->List[str]:
     if not useAI:
         return DEFAULT_QUESTIONS
 
-    response = client.beta.chat.completions.parse(
+    response = client.responses.parse(
         model="gpt-4o",
-        messages=[
+        input=[
             {"role": "system", "content": f"You are the hiring manager for the positon {applied_for_position} at a tech company."},
-            {"role": "user", "content": f"""Ask {question_count} common interview questions for this position. 
-            There should be both technical and behavioral questions."""}
+            {"role": "user", "content": f"""Task: Produce EXACTLY {question_count} refined interview questions for this position. 
+                - Behavioral: {BEHAVIORAL_COUNT}
+                - Technical: {TECHNICAL_COUNT}
+                Examples of the output:
+                ```
+                Can you describe a challenging software project you worked on and how you handled the obstacles?
+                What programming languages are you most proficient in, and how have you applied them in previous projects?
+                ```
+                
+                Once you have the questions, think over each question and refine them to be more specific and challenging.
+                Output only the refined questions."""}
         ],
         temperature=1.0,
-        max_tokens=800,
+        top_p=0.9,
+        max_output_tokens=question_count*40,
         response_model=List[str]
     )
-
-    return  response.choices[0].message.parsed
+    
+    questions: List[str] = response.output_parsed.questions
+    return questions
     
 
 
