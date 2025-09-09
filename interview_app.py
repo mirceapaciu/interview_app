@@ -6,7 +6,9 @@ from openai import OpenAI
 from helper_functions import *
 
 question_count = 5
-use_AI = False
+use_AI = True
+use_default_questions = True
+use_default_answers = True
 
 class Questions(BaseModel):
     questions: List[str]
@@ -14,11 +16,44 @@ class Questions(BaseModel):
 default_position = "Software Engineer"
 
 DEFAULT_QUESTIONS = [
-    "Tell me about yourself.",
-    "Why do you want this job?",
-    "Which are the programming languages you are most confortable with?",
-    "What is the 3rd normalization form?",
-    "Tell me about frameworks you have used in the past."
+    "Can you describe a challenging software project you worked on, detailing the specific obstacles you encountered and the strategies you used to overcome them?",
+    "Tell me about a time you had to adapt to a significant change on a project. How did you manage your response and guide your team through it?",
+    "What programming languages are you most proficient in, and can you provide specific examples of how you've used them to solve complex problems in past projects?",
+    "Walk me through the process you would use to optimize a poorly performing piece of code. How do you identify the issues, and what tools or techniques do you employ?",
+    "Explain a technical problem you've solved that required collaborating with other teams or departments. How did you ensure effective communication and integration across different areas?"
+]
+
+DEFAULT_ANSWERS = [
+    """One of the most challenging projects I worked on was the migration of a large telecom billing system to a new architecture. The codebase had been developed over many years by different teams, with inconsistent standards and limited documentation.
+The main obstacles were:
+- Complex dependencies between legacy modules, making even small changes risky.
+- Performance bottlenecks in database queries that slowed down batch processes.
+- Limited stakeholder alignment, as different departments had conflicting priorities.
+
+To overcome these, I:
+- Mapped critical dependencies using static analysis and documentation workshops, which reduced the “black box” factor.
+- Optimized database queries by introducing indexes, rewriting inefficient SQL, and caching results where possible. This improved batch processing times significantly.
+- Improved communication by setting up regular cross-team syncs and a clear backlog, so priorities became transparent and conflicts could be resolved earlier.
+
+The result was a stable migration with improved performance and clearer ownership of system components.""",
+
+"""On one project, the client changed the core requirements mid-development, which affected the database schema and API contracts. 
+I first analyzed the impact and created a revised implementation plan. I communicated the changes clearly to the team, re-prioritized tasks, and introduced short daily check-ins to track progress. 
+This kept the team aligned and allowed us to deliver the updated system on schedule.""",
+
+"""I’m most proficient in Java, C++, and SQL/PLSQL.
+Java: Built a microservices-based telecom billing system, handling high-volume transactions and implementing REST APIs with Spring.
+C++: Developed performance-critical modules for data processing in a telecom platform, optimizing memory usage and execution speed.
+SQL/PLSQL: Designed complex stored procedures and optimized large-scale queries to improve batch processing times by 40%.""",
+
+"""First, I profile the code to identify bottlenecks using tools like Java Flight Recorder, VisualVM, or SQL execution plans. 
+Then I analyze algorithm efficiency, looking for high-complexity operations or unnecessary loops. 
+I optimize by refactoring logic, caching results, reducing database calls, or using parallel processing where safe. 
+Finally, I benchmark and test to ensure improvements don’t break functionality and achieve measurable performance gains.""",
+
+"""In a telecom billing project, a new reporting feature required coordination between development, database, and operations teams. 
+I organized joint requirement sessions to clarify dependencies, documented integration points, and used shared tickets and daily stand-ups to track progress. 
+Clear communication and agreed-upon interfaces ensured smooth integration and on-time delivery."""
 ]
 
 my_api_key = get_openai_api_key()
@@ -26,7 +61,9 @@ client = OpenAI(api_key=my_api_key)
 
 
 def generate_questions(applied_for_position: str, question_count: int)->List[str]:
-    if not use_AI:
+    if use_default_questions:
+        if use_default_answers:
+            st.session_state.answers = DEFAULT_ANSWERS.copy()
         return DEFAULT_QUESTIONS
 
     BEHAVIORAL_COUNT = question_count*0.4
@@ -89,10 +126,9 @@ def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:
             ],
             temperature=1.0,
             top_p=0.9,
-            max_output_tokens=300,
-            text_format=str
+            max_output_tokens=300
         )
-        feedback.append(response.output_parsed)
+        feedback.append(response.output_text)
 
     return feedback
     
@@ -140,7 +176,6 @@ if step == 0:
     if st.button("Generate Questions"):
         st.session_state.questions = generate_questions(st.session_state.applied_for_position, question_count)
         st.session_state.step += 1
-        st.session_state.answers = {}
         st.session_state.finished = False
         st.rerun()
 else:
