@@ -6,25 +6,26 @@ from openai import OpenAI
 from helper_functions import *
 
 question_count = 5
-applied_for_position = "Software Engineer"
-use_AI = True
+use_AI = False
 
 class Questions(BaseModel):
     questions: List[str]
-    
+
+default_position = "Software Engineer"
+
 DEFAULT_QUESTIONS = [
     "Tell me about yourself.",
     "Why do you want this job?",
-    "Describe a challenging problem you solved.",
-    "What are your strengths and weaknesses?",
-    "Where do you see yourself in 3 years?"
+    "Which are the programming languages you are most confortable with?",
+    "What is the 3rd normalization form?",
+    "Tell me about frameworks you have used in the past."
 ]
 
 my_api_key = get_openai_api_key()
 client = OpenAI(api_key=my_api_key)
 
 
-def generate_questions(question_count: int)->List[str]:
+def generate_questions(applied_for_position: str, question_count: int)->List[str]:
     if not use_AI:
         return DEFAULT_QUESTIONS
 
@@ -66,8 +67,14 @@ st.set_page_config(page_title="Interview Simulator", page_icon="🎤", layout="c
 if "step" not in st.session_state:
     st.session_state.step = 0
 
+if "question_number" not in st.session_state:
+    st.session_state.question_number = 0 
+
+if "applied_for_position" not in st.session_state:
+    st.session_state.applied_for_position = default_position
+
 if "questions" not in st.session_state or st.session_state.questions == {}:
-    st.session_state.questions = generate_questions(question_count)
+    st.session_state.questions = []
 
 if "answers" not in st.session_state:
     st.session_state.answers = {}
@@ -76,42 +83,57 @@ if "finished" not in st.session_state:
     st.session_state.finished = False
 
 st.title("🎤 Interview Simulator")
-st.caption(f"Answer {question_count} interview questions. Your answers are saved locally in this session.")
-
 
 # -----------------------------
 # Interview Flow
 # -----------------------------
 step = st.session_state.step
-question_number = step + 1
-if not st.session_state.finished:
-    q = st.session_state.questions[step]
-    st.subheader(f"Question {question_number}/{question_count}")
-    st.markdown(f"**{q}**")
-    default_value = safe_get(st.session_state.answers, step, "")
-    ans = st.text_area("Your answer:", value=default_value, height=180, key=f"ans_{step}")
-    
-    cols = st.columns([1,1,1])
 
-    if st.session_state.step > 0 and cols[1].button("← Previous"):
-        st.session_state.answers[step] = ans
-        st.session_state.step -= 1
-        st.rerun()
-    if question_number < question_count:
-        if cols[2].button("Next →"):
-            st.session_state.answers[step] = ans
-            st.session_state.step += 1
-            st.rerun()
-    else:
-        if cols[2].button("Finish✅"):
-            st.session_state.answers[step] = ans
-            st.session_state.finished = True
-            st.rerun()
-else:
-    col1, col2 = st.columns([1,1])
-    if col1.button("Start over"):
-        st.session_state.step = 0
-        st.session_state.finished = False
-        st.session_state.questions = {}
+# Choose position and generate questions
+if step == 0:
+    st.session_state.applied_for_position = st.text_input("Position you are applying for:", value=default_position, key="input_applied_for_position")
+    if st.button("Generate Questions"):
+        st.session_state.questions = generate_questions(st.session_state.applied_for_position, question_count)
+        st.session_state.step += 1
+        st.session_state.question_number = 1
         st.session_state.answers = {}
+        st.session_state.finished = False
         st.rerun()
+else:
+    # Move through questions
+    question_number = st.session_state.question_number
+    st.caption(f"Answer {question_count} interview questions for the position: {st.session_state.applied_for_position}")
+
+    if not st.session_state.finished:
+        q = safe_get(st.session_state.questions, question_number-1, "No question found")
+        st.subheader(f"Question {question_number}/{question_count}")
+        st.markdown(f"**{q}**")
+        default_value = safe_get(st.session_state.answers, question_number-1, "")
+        ans = st.text_area("Your answer:", value=default_value, height=180, key=f"ans_{question_number-1}")
+        
+        cols = st.columns([1,1,1])
+
+        if st.session_state.step > 0 and cols[1].button("← Previous"):
+            st.session_state.answers[question_number-1] = ans
+            st.session_state.step -= 1
+            st.session_state.question_number -= 1
+            st.rerun()
+        if question_number < question_count:
+            if cols[2].button("Next →"):
+                st.session_state.answers[question_number-1] = ans
+                st.session_state.step += 1
+                st.session_state.question_number += 1
+                st.rerun()
+        else:
+            if cols[2].button("Finish✅"):
+                st.session_state.answers[question_number-1] = ans
+                st.session_state.finished = True
+                st.rerun()
+    else:
+        col1, col2 = st.columns([1,1])
+        if col1.button("Start over"):
+            st.session_state.step = 0
+            st.session_state.finished = False
+            st.session_state.questions = {}
+            st.session_state.answers = {}
+            st.rerun()
