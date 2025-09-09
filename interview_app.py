@@ -7,7 +7,11 @@ from helper_functions import *
 
 question_count = 5
 applied_for_position = "Software Engineer"
-useAI = False
+use_AI = True
+
+class Questions(BaseModel):
+    questions: List[str]
+    
 DEFAULT_QUESTIONS = [
     "Tell me about yourself.",
     "Why do you want this job?",
@@ -21,8 +25,11 @@ client = OpenAI(api_key=my_api_key)
 
 
 def generate_questions(question_count: int)->List[str]:
-    if not useAI:
+    if not use_AI:
         return DEFAULT_QUESTIONS
+
+    BEHAVIORAL_COUNT = question_count*0.4
+    TECHNICAL_COUNT = question_count - BEHAVIORAL_COUNT
 
     response = client.responses.parse(
         model="gpt-4o",
@@ -43,7 +50,7 @@ def generate_questions(question_count: int)->List[str]:
         temperature=1.0,
         top_p=0.9,
         max_output_tokens=question_count*40,
-        response_model=List[str]
+        text_format=Questions
     )
     
     questions: List[str] = response.output_parsed.questions
