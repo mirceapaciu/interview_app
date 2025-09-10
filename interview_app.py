@@ -4,8 +4,9 @@ import re
 from pydantic import BaseModel
 from openai import OpenAI
 from helper_functions import *
+from time import sleep
 
-use_AI = True                   # Set to False to disable AI features (test mode). In production it should be True.
+use_AI = False                   # Set to False to disable AI features (test mode). In production it should be True.
 use_default_questions = True    # Set to True to use hard-coded questions (test mode). In production it should be False.
 use_default_answers = True      # Set to True to use hard-coded answers (test mode). In production it should be False.
 
@@ -99,6 +100,7 @@ def generate_questions(job_title: str, question_count: int)->List[str]:
 
 def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:    
     if not use_AI:
+        sleep(5)  # Simulate waiting for AI response
         return ["No feedback possible without AI"] * len(questions)
 
     feedback = []
@@ -246,36 +248,40 @@ if step == 0:
 else:
     # Move through questions
     # Step 1..N -> Question 1..N
-    st.caption(f"Answer {st.session_state.question_count} interview questions for the position: {st.session_state.job_title}")
+    placeholder = st.empty()  # Create a placeholder to clear the screen
+    with placeholder.container():
+        if not st.session_state.finished or st.session_state.show_results:
+            st.caption(f"Answer {st.session_state.question_count} interview questions for the position: {st.session_state.job_title}")
+            q = safe_get(st.session_state.questions, step-1, "No question found")
+            st.subheader(f"Question {step}/{st.session_state.question_count}")
+            st.markdown(f"**{q}**")
+            saved_answer = safe_get(st.session_state.answers, step-1, "")
 
-    if not st.session_state.finished or st.session_state.show_results:
-        q = safe_get(st.session_state.questions, step-1, "No question found")
-        st.subheader(f"Question {step}/{st.session_state.question_count}")
-        st.markdown(f"**{q}**")
-        saved_answer = safe_get(st.session_state.answers, step-1, "")
-
-        answer: str = ""
-        answer_is_valid = True
-        if st.session_state.show_results:
-            feedback = safe_get(st.session_state.feedback, step-1, "")
-            st.markdown(f"**Your answer:**\n\n{saved_answer}")
-            st.markdown(f"**Feedback:**\n\n{feedback}")
-            button_pressed = render_buttons()
-        else:
-            answer = st.text_area(f"Your answer (max {answer_max_length} characters):", value=saved_answer, height=180, key=f"ans_{step-1}")
-            button_pressed = render_buttons()
-
-            if (len(answer) > answer_max_length):
-                st.error(f"Your answer is too long. It should have maximum {answer_max_length} characters.")
-                answer_is_valid = False
+            answer: str = ""
+            answer_is_valid = True
+            if st.session_state.show_results:
+                feedback = safe_get(st.session_state.feedback, step-1, "")
+                st.markdown(f"**Your answer:**\n\n{saved_answer}")
+                st.markdown(f"**Feedback:**\n\n{feedback}")
+                button_pressed = render_buttons()
             else:
-                if (len(answer) > answer_recomended_max_length):
-                    st.warning("Your answer is quite long. Consider shortening it to be more concise.")
-        
-        button_actions(button_pressed, answer, answer_is_valid)
-    else:
-        # Finished - show results
-        st.session_state.show_results = True
-        st.session_state.feedback = generate_feedback(st.session_state.questions, st.session_state.answers)
-        st.session_state.step = 1
-        st.rerun()        
+                answer = st.text_area(f"Your answer (max {answer_max_length} characters):", value=saved_answer, height=180, key=f"ans_{step-1}")
+                button_pressed = render_buttons()
+
+                if (len(answer) > answer_max_length):
+                    st.error(f"Your answer is too long. It should have maximum {answer_max_length} characters.")
+                    answer_is_valid = False
+                else:
+                    if (len(answer) > answer_recomended_max_length):
+                        st.warning("Your answer is quite long. Consider shortening it to be more concise.")
+            
+            button_actions(button_pressed, answer, answer_is_valid)
+        else:
+            # Finished - show results
+            # with placeholder.container():  # Use the placeholder as a container
+            placeholder.empty()
+            with st.spinner("Generating feedback... Please wait."):        
+                st.session_state.feedback = generate_feedback(st.session_state.questions, st.session_state.answers)
+                st.session_state.step = 1               # Start with question 1
+                st.session_state.show_results = True    # Switch to results mode
+                # st.rerun()        
