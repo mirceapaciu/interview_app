@@ -128,6 +128,16 @@ def input_text_content_validation(input_str: str) -> str:
 
     return ""  # No issues found
 
+# Returns "" if the job title is valid, otherwise returns the error message
+def validate_job_title(title: str) -> str:
+    #The job title should:\n- Be 3-50 characters long\n- Only contain letters, numbers, spaces, hyphens, and ampersands
+    pattern = r'^[A-Za-z0-9 &-]{3,50}$'
+
+    if not bool(re.match(pattern, title)):
+        return "Should be be 3-50 characters long, only contain letters, numbers, spaces, hyphens, and ampersands"
+
+    return input_text_content_validation(title)
+
 def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:    
     if not use_AI:
         sleep(5)  # Simulate waiting for AI response
@@ -166,11 +176,6 @@ def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:
         feedback.append(response.output_text)
 
     return feedback
-    
-def is_valid_job_title(title: str) -> bool:
-    #The job title should:\n- Be 3-50 characters long\n- Only contain letters, numbers, spaces, hyphens, and ampersands
-    pattern = r'^[A-Za-z0-9 &-]{3,50}$'
-    return bool(re.match(pattern, title))
 
 def render_buttons() -> Dict[str, bool]:
     cols = st.columns([1,1,1])
@@ -266,15 +271,16 @@ if step == 0:
     # Always show the button in the same place
     generate_clicked = st.button("Generate Questions")
 
-    if is_valid_job_title(job_title):
+    job_title_validation = validate_job_title(job_title)
+    if job_title_validation != "":
+        st.error(f"Invalid job title: {job_title_validation}")
+    else:
         st.session_state.job_title = job_title
         if generate_clicked:
             st.session_state.questions = generate_questions(st.session_state.job_title, st.session_state.question_count)
             st.session_state.step += 1
             st.session_state.finished = False
             st.rerun()
-    else:
-        st.error("The job title should:\n- Be 3-50 characters long\n- Only contain letters, numbers, spaces, hyphens, and ampersands")
 else:
     # Move through questions
     # Step 1..N -> Question 1..N
