@@ -13,7 +13,7 @@ use_default_answers = True
 class Questions(BaseModel):
     questions: List[str]
 
-default_position = "Software Engineer"
+default_job_title = "Software Engineer"
 
 DEFAULT_QUESTIONS = [
     "Can you describe a challenging software project you worked on, detailing the specific obstacles you encountered and the strategies you used to overcome them?",
@@ -60,7 +60,7 @@ my_api_key = get_openai_api_key()
 client = OpenAI(api_key=my_api_key)
 
 
-def generate_questions(applied_for_position: str, question_count: int)->List[str]:
+def generate_questions(job_title: str, question_count: int)->List[str]:
     if use_default_questions:
         if use_default_answers:
             st.session_state.answers = DEFAULT_ANSWERS.copy()
@@ -72,7 +72,7 @@ def generate_questions(applied_for_position: str, question_count: int)->List[str
     response = client.responses.parse(
         model="gpt-4o",
         input=[
-            {"role": "system", "content": f"You are the hiring manager for the positon {applied_for_position} at a tech company."},
+            {"role": "system", "content": f"You are the hiring manager for the positon {job_title} at a tech company."},
             {"role": "user", "content": f"""Task: Produce EXACTLY {question_count} refined interview questions for this position. 
                 - Behavioral: {BEHAVIORAL_COUNT}
                 - Technical: {TECHNICAL_COUNT}
@@ -145,8 +145,8 @@ if "step" not in st.session_state:
 if "step" not in st.session_state:
     st.session_state.step = 0 
 
-if "applied_for_position" not in st.session_state:
-    st.session_state.applied_for_position = default_position
+if "job_title" not in st.session_state:
+    st.session_state.job_title = default_job_title
 
 if "questions" not in st.session_state:
     st.session_state.questions = []
@@ -170,17 +170,17 @@ st.title("🎤 Interview Simulator")
 # -----------------------------
 step = st.session_state.step
 
-# Choose position and generate questions
+# Choose job_title and generate questions
 if step == 0:
-    st.session_state.applied_for_position = st.text_input("Position you are applying for:", value=default_position, key="input_applied_for_position")
+    st.session_state.job_title = st.text_input("Job title you are applying for:", value=default_job_title, key="input_job_title")
     if st.button("Generate Questions"):
-        st.session_state.questions = generate_questions(st.session_state.applied_for_position, question_count)
+        st.session_state.questions = generate_questions(st.session_state.job_title, question_count)
         st.session_state.step += 1
         st.session_state.finished = False
         st.rerun()
 else:
     # Move through questions
-    st.caption(f"Answer {question_count} interview questions for the position: {st.session_state.applied_for_position}")
+    st.caption(f"Answer {question_count} interview questions for the position: {st.session_state.job_title}")
 
     if not st.session_state.finished or st.session_state.show_results:
         q = safe_get(st.session_state.questions, step-1, "No question found")
