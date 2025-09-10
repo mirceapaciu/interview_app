@@ -11,10 +11,12 @@ use_default_answers = True      # Set to True to use hard-coded answers (test mo
 
 class Questions(BaseModel):
     questions: List[str]
-
+   
 default_job_title = "Software Engineer"
 default_question_count = 5
 max_question_count = 20
+answer_max_length=1500
+answer_recomended_max_length=1000
 
 DEFAULT_QUESTIONS = [
     "Can you describe a challenging software project you worked on, detailing the specific obstacles you encountered and the strategies you used to overcome them?",
@@ -138,6 +140,49 @@ def is_valid_job_title(title: str) -> bool:
     pattern = r'^[A-Za-z0-9 &-]{3,50}$'
     return bool(re.match(pattern, title))
 
+def render_buttons() -> Dict[str, bool]:
+    cols = st.columns([1,1,1])
+    buttons: Dict[str, bool] = {}
+
+    if st.session_state.step > 1:
+        buttons["button_previous"] = cols[1].button("← Previous")
+
+    if st.session_state.step < st.session_state.question_count:
+        buttons["button_next"] = cols[2].button("Next →")
+    else:
+        if not st.session_state.show_results:
+            buttons["button_finish"] = cols[2].button("Finish✅")
+
+    if st.session_state.show_results:
+        buttons["button_start_over"] = cols[2].button("Start over")
+
+    return buttons
+
+def button_actions(buttons: Dict[str, bool], answer: str, answer_is_valid: bool = True):
+    if buttons.get("button_previous", False) and answer_is_valid:
+        if not st.session_state.show_results:
+            st.session_state.answers[step-1] = answer
+        st.session_state.step -= 1
+        st.rerun()
+    
+    if buttons.get("button_next", False) and answer_is_valid:
+        if not st.session_state.show_results:
+            st.session_state.answers[step-1] = answer
+        st.session_state.step += 1
+        st.rerun()
+
+    if buttons.get("button_finish", False) and answer_is_valid:
+        st.session_state.answers[step-1] = answer
+        st.session_state.finished = True
+        st.rerun()
+    
+    if buttons.get("button_start_over", False):
+        st.session_state.step = 0
+        st.session_state.finished = False
+        st.session_state.show_results = False
+        st.session_state.questions = {}
+        st.session_state.answers = {}
+        st.rerun()
 
 ############################## MAIN ##############################
 st.set_page_config(page_title="Interview Simulator", page_icon="🎤", layout="centered")
@@ -178,6 +223,7 @@ st.title("🎤 Interview Simulator")
 # Interview Flow
 # -----------------------------
 step = st.session_state.step
+button_pressed: Dict[str, bool] = {}
 
 # Choose job_title and generate questions
 if step == 0:
@@ -199,6 +245,7 @@ if step == 0:
         st.error("The job title should:\n- Be 3-50 characters long\n- Only contain letters, numbers, spaces, hyphens, and ampersands")
 else:
     # Move through questions
+    # Step 1..N -> Question 1..N
     st.caption(f"Answer {st.session_state.question_count} interview questions for the position: {st.session_state.job_title}")
 
     if not st.session_state.finished or st.session_state.show_results:
@@ -206,42 +253,26 @@ else:
         st.subheader(f"Question {step}/{st.session_state.question_count}")
         st.markdown(f"**{q}**")
         saved_answer = safe_get(st.session_state.answers, step-1, "")
-        
+
+        answer: str = ""
+        answer_is_valid = True
         if st.session_state.show_results:
             feedback = safe_get(st.session_state.feedback, step-1, "")
             st.markdown(f"**Your answer:**\n\n{saved_answer}")
             st.markdown(f"**Feedback:**\n\n{feedback}")
+            button_pressed = render_buttons()
         else:
-            ans = st.text_area("Your answer:", value=saved_answer, height=180, key=f"ans_{step-1}")
+            answer = st.text_area(f"Your answer (max {answer_max_length} characters):", value=saved_answer, height=180, key=f"ans_{step-1}")
+            button_pressed = render_buttons()
 
-        cols = st.columns([1,1,1])
-
-        if step > 1 and cols[1].button("← Previous"):
-            if not st.session_state.show_results:
-                st.session_state.answers[step-1] = ans
-            st.session_state.step -= 1
-            st.rerun()
-        if step < st.session_state.question_count:
-            if cols[2].button("Next →"):
-                if not st.session_state.show_results:
-                    st.session_state.answers[step-1] = ans
-                st.session_state.step += 1
-                st.rerun()
-        else:
-            if not st.session_state.show_results:
-                if cols[2].button("Finish✅"):
-                    # st.session_state.answers[step-1] = ans
-                    st.session_state.finished = True
-                    st.rerun()
-
-        if st.session_state.show_results:
-            if cols[2].button("Start over"):
-                st.session_state.step = 0
-                st.session_state.finished = False
-                st.session_state.show_results = False
-                st.session_state.questions = {}
-                st.session_state.answers = {}
-                st.rerun()
+            if (len(answer) > answer_max_length):
+                st.error(f"Your answer is too long. It should have maximum {answer_max_length} characters.")
+                answer_is_valid = False
+            else:
+                if (len(answer) > answer_recomended_max_length):
+                    st.warning("Your answer is quite long. Consider shortening it to be more concise.")
+        
+        button_actions(button_pressed, answer, answer_is_valid)
     else:
         # Finished - show results
         st.session_state.show_results = True
