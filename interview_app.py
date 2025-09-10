@@ -160,7 +160,7 @@ def render_buttons() -> Dict[str, bool]:
 
     return buttons
 
-def button_actions(buttons: Dict[str, bool], answer: str, answer_is_valid: bool = True):
+def button_actions(buttons: Dict[str, bool], answer: str = "", answer_is_valid: bool = True):
     if buttons.get("button_previous", False) and answer_is_valid:
         if not st.session_state.show_results:
             st.session_state.answers[step-1] = answer
@@ -248,40 +248,37 @@ if step == 0:
 else:
     # Move through questions
     # Step 1..N -> Question 1..N
-    placeholder = st.empty()  # Create a placeholder to clear the screen
-    with placeholder.container():
-        if not st.session_state.finished or st.session_state.show_results:
+    if not st.session_state.finished or st.session_state.show_results:
+        if not st.session_state.finished:
             st.caption(f"Answer {st.session_state.question_count} interview questions for the position: {st.session_state.job_title}")
-            q = safe_get(st.session_state.questions, step-1, "No question found")
-            st.subheader(f"Question {step}/{st.session_state.question_count}")
-            st.markdown(f"**{q}**")
-            saved_answer = safe_get(st.session_state.answers, step-1, "")
+        
+        q = safe_get(st.session_state.questions, step-1, "No question found")
+        st.subheader(f"Question {step}/{st.session_state.question_count}")
+        st.markdown(f"**{q}**")
+        saved_answer = safe_get(st.session_state.answers, step-1, "")
 
-            answer: str = ""
-            answer_is_valid = True
-            if st.session_state.show_results:
-                feedback = safe_get(st.session_state.feedback, step-1, "")
-                st.markdown(f"**Your answer:**\n\n{saved_answer}")
-                st.markdown(f"**Feedback:**\n\n{feedback}")
-                button_pressed = render_buttons()
-            else:
-                answer = st.text_area(f"Your answer (max {answer_max_length} characters):", value=saved_answer, height=180, key=f"ans_{step-1}")
-                button_pressed = render_buttons()
-
-                if (len(answer) > answer_max_length):
-                    st.error(f"Your answer is too long. It should have maximum {answer_max_length} characters.")
-                    answer_is_valid = False
-                else:
-                    if (len(answer) > answer_recomended_max_length):
-                        st.warning("Your answer is quite long. Consider shortening it to be more concise.")
-            
-            button_actions(button_pressed, answer, answer_is_valid)
+        if st.session_state.show_results:
+            feedback = safe_get(st.session_state.feedback, step-1, "")
+            st.markdown(f"**Your answer:**\n\n{saved_answer}")
+            st.markdown(f"**Feedback:**\n\n{feedback}")
+            button_pressed = render_buttons()
+            button_actions(button_pressed)
         else:
-            # Finished - show results
-            # with placeholder.container():  # Use the placeholder as a container
-            placeholder.empty()
-            with st.spinner("Generating feedback... Please wait."):        
-                st.session_state.feedback = generate_feedback(st.session_state.questions, st.session_state.answers)
-                st.session_state.step = 1               # Start with question 1
-                st.session_state.show_results = True    # Switch to results mode
-                # st.rerun()        
+            answer = st.text_area(f"Your answer (max {answer_max_length} characters):", value=saved_answer, height=180, key=f"ans_{step-1}")
+            answer_is_valid = True
+            button_pressed = render_buttons()
+
+            if (len(answer) > answer_max_length):
+                st.error(f"Your answer is too long. It should have maximum {answer_max_length} characters.")
+                answer_is_valid = False
+            else:
+                if (len(answer) > answer_recomended_max_length):
+                    st.warning("Your answer is quite long. Consider shortening it to be more concise.")
+            button_actions(button_pressed, answer, answer_is_valid)
+    else:
+        # Finished - show results
+        with st.spinner("Generating feedback... Please wait."):        
+            st.session_state.feedback = generate_feedback(st.session_state.questions, st.session_state.answers)
+            st.session_state.step = 1               # Start with question 1
+            st.session_state.show_results = True    # Switch to results mode
+            st.rerun()        
