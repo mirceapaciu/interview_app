@@ -5,15 +5,16 @@ from pydantic import BaseModel
 from openai import OpenAI
 from helper_functions import *
 
-question_count = 5
-use_AI = True
-use_default_questions = True
-use_default_answers = True
+use_AI = True                   # Set to False to disable AI features (test mode). In production it should be True.
+use_default_questions = True    # Set to True to use hard-coded questions (test mode). In production it should be False.
+use_default_answers = True      # Set to True to use hard-coded answers (test mode). In production it should be False.
 
 class Questions(BaseModel):
     questions: List[str]
 
 default_job_title = "Software Engineer"
+default_question_count = 5
+max_question_count = 20
 
 DEFAULT_QUESTIONS = [
     "Can you describe a challenging software project you worked on, detailing the specific obstacles you encountered and the strategies you used to overcome them?",
@@ -153,6 +154,9 @@ if "step" not in st.session_state:
 if "job_title" not in st.session_state:
     st.session_state.job_title = default_job_title
 
+if "question_count" not in st.session_state:
+    st.session_state.question_count = default_question_count
+
 if "questions" not in st.session_state:
     st.session_state.questions = []
 
@@ -178,6 +182,8 @@ step = st.session_state.step
 # Choose job_title and generate questions
 if step == 0:
     job_title = st.text_input("Job title you are applying for:", value=default_job_title, key="input_job_title")
+    st.session_state.question_count = st.number_input(f"How many questions should be asked (max {max_question_count}):",
+        min_value=1, max_value=max_question_count, value=default_question_count, step=1, key="input_question_count")
 
     # Always show the button in the same place
     generate_clicked = st.button("Generate Questions")
@@ -185,7 +191,7 @@ if step == 0:
     if is_valid_job_title(job_title):
         st.session_state.job_title = job_title
         if generate_clicked:
-            st.session_state.questions = generate_questions(st.session_state.job_title, question_count)
+            st.session_state.questions = generate_questions(st.session_state.job_title, st.session_state.question_count)
             st.session_state.step += 1
             st.session_state.finished = False
             st.rerun()
@@ -193,11 +199,11 @@ if step == 0:
         st.error("The job title should:\n- Be 3-50 characters long\n- Only contain letters, numbers, spaces, hyphens, and ampersands")
 else:
     # Move through questions
-    st.caption(f"Answer {question_count} interview questions for the position: {st.session_state.job_title}")
+    st.caption(f"Answer {st.session_state.question_count} interview questions for the position: {st.session_state.job_title}")
 
     if not st.session_state.finished or st.session_state.show_results:
         q = safe_get(st.session_state.questions, step-1, "No question found")
-        st.subheader(f"Question {step}/{question_count}")
+        st.subheader(f"Question {step}/{st.session_state.question_count}")
         st.markdown(f"**{q}**")
         saved_answer = safe_get(st.session_state.answers, step-1, "")
         
@@ -215,7 +221,7 @@ else:
                 st.session_state.answers[step-1] = ans
             st.session_state.step -= 1
             st.rerun()
-        if step < question_count:
+        if step < st.session_state.question_count:
             if cols[2].button("Next →"):
                 if not st.session_state.show_results:
                     st.session_state.answers[step-1] = ans
