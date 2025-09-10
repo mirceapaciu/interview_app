@@ -5,14 +5,15 @@ from pydantic import BaseModel
 from openai import OpenAI
 from helper_functions import *
 from time import sleep
+from better_profanity import profanity
 
-use_AI = False                   # Set to False to disable AI features (test mode). In production it should be True.
+use_AI = False                  # Set to False to disable AI features (test mode). In production it should be True.
 use_default_questions = True    # Set to True to use hard-coded questions (test mode). In production it should be False.
 use_default_answers = True      # Set to True to use hard-coded answers (test mode). In production it should be False.
 
 class Questions(BaseModel):
     questions: List[str]
-   
+
 default_job_title = "Software Engineer"
 default_question_count = 5
 max_question_count = 20
@@ -97,6 +98,35 @@ def generate_questions(job_title: str, question_count: int)->List[str]:
     
     questions: List[str] = response.output_parsed.questions
     return questions
+
+# Returns an empty string if the input is valid, otherwise returns an error message
+def input_text_content_validation(input_str: str) -> str:
+    """
+    Validate user input with simple hard filters.
+    Returns True if safe, False if suspicious.
+    """
+    text = input_str.strip()
+
+    # Allowed characters check (letters, digits, punctuation, spaces)
+    if not re.match(r"^[\w\s.,!?;:()'\-&“”\"\/]+$", text, flags=re.UNICODE):
+        return "Should contain letters, digits, punctuation, spaces only"
+
+    # Disallowed keywords (prompt injection / sensitive terms)
+    banned_keywords = [
+        "ignore previous", "system prompt", "assistant", "instruction",
+        "api key", "password", "token", "secret",
+        "sudo", "rm -rf", "exec(", "import os", "subprocess",
+        "kill", "drop table", "delete from"
+    ]
+    lower_text = text.lower()
+    for keyword in banned_keywords:
+        if keyword in lower_text:
+            return "Contains disallowed keywords"
+
+    if profanity.contains_profanity(input_str):
+        return "Contains profanity"
+
+    return ""  # No issues found
 
 def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:    
     if not use_AI:
@@ -274,6 +304,11 @@ else:
             else:
                 if (len(answer) > answer_recomended_max_length):
                     st.warning("Your answer is quite long. Consider shortening it to be more concise.")
+            
+            hard_filter_result = input_text_content_validation(answer)
+            if hard_filter_result != "":
+                st.error(f"Your answer is invalid: {hard_filter_result}")
+                answer_is_valid = False
             button_actions(button_pressed, answer, answer_is_valid)
     else:
         # Finished - show results
