@@ -132,6 +132,11 @@ def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:
 
     return feedback
     
+def is_valid_job_title(title: str) -> bool:
+    #The job title should:\n- Be 3-50 characters long\n- Only contain letters, numbers, spaces, hyphens, and ampersands
+    pattern = r'^[A-Za-z0-9 &-]{3,50}$'
+    return bool(re.match(pattern, title))
+
 
 ############################## MAIN ##############################
 st.set_page_config(page_title="Interview Simulator", page_icon="🎤", layout="centered")
@@ -172,12 +177,20 @@ step = st.session_state.step
 
 # Choose job_title and generate questions
 if step == 0:
-    st.session_state.job_title = st.text_input("Job title you are applying for:", value=default_job_title, key="input_job_title")
-    if st.button("Generate Questions"):
-        st.session_state.questions = generate_questions(st.session_state.job_title, question_count)
-        st.session_state.step += 1
-        st.session_state.finished = False
-        st.rerun()
+    job_title = st.text_input("Job title you are applying for:", value=default_job_title, key="input_job_title")
+
+    # Always show the button in the same place
+    generate_clicked = st.button("Generate Questions")
+
+    if is_valid_job_title(job_title):
+        st.session_state.job_title = job_title
+        if generate_clicked:
+            st.session_state.questions = generate_questions(st.session_state.job_title, question_count)
+            st.session_state.step += 1
+            st.session_state.finished = False
+            st.rerun()
+    else:
+        st.error("The job title should:\n- Be 3-50 characters long\n- Only contain letters, numbers, spaces, hyphens, and ampersands")
 else:
     # Move through questions
     st.caption(f"Answer {question_count} interview questions for the position: {st.session_state.job_title}")
