@@ -7,9 +7,9 @@ from helper_functions import *
 from time import sleep
 from better_profanity import profanity
 
-use_AI = True                  # Set to False to disable AI features (test mode). In production it should be True.
-use_default_questions = False    # Set to True to use hard-coded questions (test mode). In production it should be False.
-use_default_answers = False      # Set to True to use hard-coded answers (test mode). In production it should be False.
+use_AI = True                   # Set to False to disable AI features (test mode). In production it should be True.
+use_default_questions = False   # Set to True to use hard-coded questions (test mode). In production it should be False.
+use_default_answers = False     # Set to True to use hard-coded answers (test mode). In production it should be False.
 
 class Questions(BaseModel):
     questions: List[str]
@@ -65,12 +65,17 @@ I organized joint requirement sessions to clarify dependencies, documented integ
 Clear communication and agreed-upon interfaces ensured smooth integration and on-time delivery."""
 ]
 
+openai_models = ['gpt-4', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano']
+
+default_openai_model = 'gpt-4o'
+
 my_api_key = get_openai_api_key()
 client = OpenAI(api_key=my_api_key)
 
 
-def generate_questions(job_title: str, question_count: int, difficulty_level: str) -> List[str]:
+def generate_questions(job_title: str, question_count: int, difficulty_level: str, openai_model: str) -> List[str]:
     if use_default_questions:
+        sleep(5)  # Simulate API call delay
         if use_default_answers:
             st.session_state.answers = DEFAULT_ANSWERS.copy()
         return DEFAULT_QUESTIONS
@@ -79,7 +84,7 @@ def generate_questions(job_title: str, question_count: int, difficulty_level: st
     TECHNICAL_COUNT:int = question_count - BEHAVIORAL_COUNT
 
     response = client.responses.parse(
-        model="gpt-4o",
+        model=openai_model,
         input=[
             {"role": "system", "content": f"You are the hiring manager for the positon {job_title} at a tech company."},
             {"role": "user", "content": f"""Task: Produce EXACTLY {question_count} refined interview questions for this position.
@@ -143,7 +148,7 @@ def validate_job_title(title: str) -> str:
 
     return input_text_content_validation(title)
 
-def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:    
+def generate_feedback(questions: List[str], answers: List[str], openai_model: str) -> List[str]:    
     if not use_AI:
         sleep(5)  # Simulate waiting for AI response
         return ["No feedback possible without AI"] * len(questions)
@@ -152,7 +157,7 @@ def generate_feedback(questions: List[str], answers: List[str]) -> List[str]:
 
     for q, a in zip(questions, answers):
         response = client.responses.parse(
-            model="gpt-4o",
+            model=openai_model,
             input=[
                 {"role": "system", "content": f"You are an expert hiring manager providing feedback on interview answers."},
                 {"role": "user", "content": f"""Task: Provide constructive feedback on the following interview answer.
@@ -247,6 +252,9 @@ if "question_count" not in st.session_state:
 if "difficulty_level" not in st.session_state:
     st.session_state.difficulty_level = default_difficulty_level
 
+if "openai_model" not in st.session_state:
+    st.session_state.openai_model = default_openai_model
+
 if "questions" not in st.session_state:
     st.session_state.questions = []
 
@@ -286,6 +294,14 @@ if step == 0:
         key="input_difficulty_level"
     )
 
+    # Combo box for LLM models
+    st.session_state.openai_model = st.selectbox(
+        "Select the LLM model:",
+        openai_models,
+        index=openai_models.index(default_openai_model),  # Pre-select the default model
+        key="input_openai_model"
+    )
+
     # Always show the button in the same place
     generate_clicked = st.button("Generate Questions")
 
@@ -295,10 +311,12 @@ if step == 0:
     else:
         st.session_state.job_title = job_title
         if generate_clicked:
-            st.session_state.questions = generate_questions(st.session_state.job_title, st.session_state.question_count, st.session_state.difficulty_level)
-            st.session_state.step += 1
-            st.session_state.finished = False
-            st.rerun()
+            with st.spinner("Preparing the questions... Please wait."):        
+                st.session_state.questions = generate_questions(st.session_state.job_title, st.session_state.question_count, 
+                    st.session_state.difficulty_level, st.session_state.openai_model)
+                st.session_state.step += 1
+                st.session_state.finished = False
+                st.rerun()
 else:
     # Move through questions
     # Step 1..N -> Question 1..N
@@ -347,7 +365,7 @@ else:
         if st.session_state.answer_feedback == []:
             st.success("You have answered all questions! Once the feedback is generated you can view it.")
             with st.spinner("Generating feedback... Please wait."):        
-                st.session_state.answer_feedback = generate_feedback(st.session_state.questions, st.session_state.answers)
+                st.session_state.answer_feedback = generate_feedback(st.session_state.questions, st.session_state.answers, st.session_state.openai_model)
                 st.rerun()        
         else:
             cols = st.columns([1,1])
