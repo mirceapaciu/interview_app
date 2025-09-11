@@ -245,8 +245,8 @@ if "questions" not in st.session_state:
 if "answers" not in st.session_state:
     st.session_state.answers = []
 
-if "feedback" not in st.session_state:
-    st.session_state.feedback = []
+if "answer_feedback" not in st.session_state:
+    st.session_state.answer_feedback = []
 
 if "finished" not in st.session_state:
     st.session_state.finished = False
@@ -295,7 +295,7 @@ else:
         saved_answer = safe_get(st.session_state.answers, step-1, "")
 
         if st.session_state.show_results:
-            feedback = safe_get(st.session_state.feedback, step-1, "")
+            feedback = safe_get(st.session_state.answer_feedback, step-1, "")
             st.markdown(f"**Your answer:**\n\n{saved_answer}")
             st.markdown(f"**Feedback:**\n\n{feedback}")
             button_pressed = render_buttons()
@@ -319,8 +319,15 @@ else:
             button_actions(button_pressed, answer, answer_is_valid)
     else:
         # Finished - show results
-        with st.spinner("Generating feedback... Please wait."):        
-            st.session_state.feedback = generate_feedback(st.session_state.questions, st.session_state.answers)
-            st.session_state.step = 1               # Start with question 1
-            st.session_state.show_results = True    # Switch to results mode
-            st.rerun()        
+        if st.session_state.answer_feedback == []:
+            st.success("You have answered all questions! Once the feedback is generated you can view it.")
+            with st.spinner("Generating feedback... Please wait."):        
+                st.session_state.answer_feedback = generate_feedback(st.session_state.questions, st.session_state.answers)
+                st.rerun()        
+        else:
+            cols = st.columns([1,1])
+            if st.session_state.step > 1:
+                if cols[1].button("View feedback"):
+                    st.session_state.step = 1               # Start with question 1
+                    st.session_state.show_results = True    # Switch to results mode
+                    st.rerun()        
