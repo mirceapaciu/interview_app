@@ -65,13 +65,23 @@ I organized joint requirement sessions to clarify dependencies, documented integ
 Clear communication and agreed-upon interfaces ensured smooth integration and on-time delivery."""
 ]
 
-openai_models = ['gpt-4', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano']
+openai_models = ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano']
+default_openai_model = 'gpt-4o-mini'
 
-default_openai_model = 'gpt-4o'
+openai_price_per_1m_tokens = {
+    'gpt-4o': {'input': 2.5, 'output': 10},
+    'gpt-4o-mini': {'input': 0.15, 'output': 0.60},
+    'gpt-4.1': {'input': 2., 'output': 8.},
+    'gpt-4.1-mini': {'input': 0.40, 'output': 1.60},
+    'gpt-4.1-nano': {'input': 0.10, 'output': 0.40}
+}
 
 my_api_key = get_openai_api_key()
 client = OpenAI(api_key=my_api_key)
 
+def count_costs(response):
+    st.session_state.total_cost += response.usage.input_tokens * openai_price_per_1m_tokens[st.session_state.openai_model]['input'] / 1000000
+    st.session_state.total_cost += response.usage.output_tokens * openai_price_per_1m_tokens[st.session_state.openai_model]['output'] / 1000000
 
 def generate_questions(job_title: str, question_count: int, difficulty_level: str, openai_model: str) -> List[str]:
     if use_default_questions:
@@ -106,10 +116,12 @@ def generate_questions(job_title: str, question_count: int, difficulty_level: st
         text_format=Questions
     )
     
+    count_costs(response)
+
     questions: List[str] = response.output_parsed.questions
     return questions
 
-# Returns an empty string if the input is valid, otherwise returns an error message
+# Returns an empty string if the input is valid, otherwise returns the error message
 def input_text_content_validation(input_str: str) -> str:
     """
     Validate user input with simple hard filters.
@@ -184,6 +196,7 @@ def generate_feedback(questions: List[str], answers: List[str], openai_model: st
             max_output_tokens=300
         )
         feedback.append(response.output_text)
+        count_costs(response)
 
     return feedback
 
@@ -270,6 +283,9 @@ if "finished" not in st.session_state:
 if "show_results" not in st.session_state:
     st.session_state.show_results = False
 
+if "total_cost" not in st.session_state:
+    st.session_state.total_cost = 0.0    
+
 st.title("🎤 Interview Simulator")
 
 # -----------------------------
@@ -324,7 +340,8 @@ else:
         if not st.session_state.finished:
             st.caption(f"Answer {st.session_state.question_count} {st.session_state.difficulty_level.lower()} interview questions for the position: {st.session_state.job_title}")
         else:
-            st.subheader(f"Feedback on your answers for the position: {st.session_state.job_title}")        
+            st.subheader(f"Feedback on your answers for the position: {st.session_state.job_title}")
+            st.caption(f"LLM usage cost: ${st.session_state.total_cost:.6f}")
         q = safe_get(st.session_state.questions, step-1, "No question found")
         st.subheader(f"Question {step}/{st.session_state.question_count}")
         st.markdown(f"**{q}**")
