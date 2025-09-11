@@ -287,7 +287,8 @@ else:
     if not st.session_state.finished or st.session_state.show_results:
         if not st.session_state.finished:
             st.caption(f"Answer {st.session_state.question_count} interview questions for the position: {st.session_state.job_title}")
-        
+        else:
+            st.subheader(f"Feedback on your answers for the position: {st.session_state.job_title}")        
         q = safe_get(st.session_state.questions, step-1, "No question found")
         st.subheader(f"Question {step}/{st.session_state.question_count}")
         st.markdown(f"**{q}**")
