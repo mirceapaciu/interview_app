@@ -8,8 +8,8 @@ from time import sleep
 from better_profanity import profanity
 
 use_AI = True                   # Set to False to disable AI features (test mode). In production it should be True.
-use_default_questions = False   # Set to True to use hard-coded questions (test mode). In production it should be False.
-use_default_answers = False     # Set to True to use hard-coded answers (test mode). In production it should be False.
+use_default_questions = True   # Set to True to use hard-coded questions (test mode). In production it should be False.
+use_default_answers = True     # Set to True to use hard-coded answers (test mode). In production it should be False.
 
 # Define Pydantic models
 class Questions(BaseModel):
@@ -18,15 +18,20 @@ class Questions(BaseModel):
 class InvalidFeedback(BaseModel):
     summary: str
     guidance: str
+    class Config:
+        extra = "forbid"  # Disallow extra fields
 
 class ValidFeedback(BaseModel):
     strengths: List[str]
     improvements: List[str]
+    class Config:
+        extra = "forbid"  # Disallow extra fields
 
 class FeedbackResponse(BaseModel):
     answer_is_valid: bool
     feedback: Union[InvalidFeedback, ValidFeedback]
-
+    class Config:
+        extra = "forbid"  # Disallow extra fields
 
 default_job_title = "Software Engineer"
 job_description_max_length=2000
@@ -158,7 +163,7 @@ def input_text_content_validation(input_str: str) -> str:
     text = input_str.strip()
 
     # Allowed characters check (letters, digits, punctuation, spaces)
-    if not re.match(r"^[\w\s.,!?;:()'\-&“”\"\/]+$", text, flags=re.UNICODE):
+    if not re.match(r"^[\w\s.,!?;:()'\-&%“”\"\/]+$", text, flags=re.UNICODE):
         return "Should contain letters, digits, punctuation, spaces only"
 
     # Disallowed keywords (prompt injection / sensitive terms)
@@ -215,9 +220,12 @@ def generate_feedback(questions: List[str], answers: List[str], openai_model: st
                     </logic_flow>
 
                     <output_format>
-                    Respond with ONLY a valid JSON object. The JSON should have two keys:
-                    - "answer_is_valid": A boolean (true or false).
-                    - "feedback": An object containing the feedback. The structure of this object will depend on the assessment.
+                        Respond with ONLY a valid JSON object. The JSON should have exactly the following keys:
+                        - "answer_is_valid": A boolean (true or false).
+                        - "feedback": An object containing either:
+                            - "guidance" (if the answer is invalid), or
+                            - "strengths" and "improvements" (if the answer is valid).
+                        Do not include any additional fields.                    
                     
                     Example for an INVALID answer:
                     {{
@@ -244,6 +252,26 @@ def generate_feedback(questions: List[str], answers: List[str], openai_model: st
         count_costs(response)
 
     return feedback
+
+def show_feedback(feedback: FeedbackResponse):
+    if not feedback.answer_is_valid:
+        if isinstance(feedback.feedback, InvalidFeedback):
+            st.error("Your answer is invalid.")
+            st.markdown(f"**Guidance:** {feedback.feedback.guidance}")
+        else:
+            st.error("Your answer is invalid, but no guidance provided.")
+    else:
+        if isinstance(feedback.feedback, ValidFeedback):
+            if feedback.feedback.strengths:
+                st.markdown("**Strengths:**")
+                for strength in feedback.feedback.strengths:
+                    st.markdown(f"- {strength}")
+            if feedback.feedback.improvements:
+                st.markdown("**Improvements:**")
+                for improvement in feedback.feedback.improvements:
+                    st.markdown(f"- {improvement}")
+        else:
+            st.warning("Your answer is valid, but no detailed feedback provided.")
 
 def render_buttons() -> Dict[str, bool]:
     cols = st.columns([1,1,1])
@@ -289,50 +317,53 @@ def button_actions(buttons: Dict[str, bool], answer: str = "", answer_is_valid: 
         st.session_state.answers = {}
         st.rerun()
 
+def initialize_session_state():
+    if "step" not in st.session_state:
+        st.session_state.step = 0
+
+    if "step" not in st.session_state:
+        st.session_state.step = 0 
+
+    if "job_title" not in st.session_state:
+        st.session_state.job_title = default_job_title
+
+    if "job_description" not in st.session_state:
+        st.session_state.job_description = ""
+
+    if "question_count" not in st.session_state:
+        st.session_state.question_count = default_question_count
+
+    if "difficulty_level" not in st.session_state:
+        st.session_state.difficulty_level = default_difficulty_level
+
+    if "openai_model" not in st.session_state:
+        st.session_state.openai_model = default_openai_model
+
+    if "questions" not in st.session_state:
+        st.session_state.questions = []
+
+    if "answers" not in st.session_state:
+        st.session_state.answers = [""] * st.session_state.question_count
+
+    if "answer_feedback" not in st.session_state:
+        st.session_state.answer_feedback = []
+
+    if "finished" not in st.session_state:
+        st.session_state.finished = False
+
+    if "show_results" not in st.session_state:
+        st.session_state.show_results = False
+
+    if "total_cost" not in st.session_state:
+        st.session_state.total_cost = 0.0    
+    
 ############################## MAIN ##############################
 st.set_page_config(page_title="Interview Simulator", page_icon="🎤", layout="centered")
 
 # -----------------------------
 # Initialize the UI State if not done yet
 # -----------------------------
-if "step" not in st.session_state:
-    st.session_state.step = 0
-
-if "step" not in st.session_state:
-    st.session_state.step = 0 
-
-if "job_title" not in st.session_state:
-    st.session_state.job_title = default_job_title
-
-if "job_description" not in st.session_state:
-    st.session_state.job_description = ""
-
-if "question_count" not in st.session_state:
-    st.session_state.question_count = default_question_count
-
-if "difficulty_level" not in st.session_state:
-    st.session_state.difficulty_level = default_difficulty_level
-
-if "openai_model" not in st.session_state:
-    st.session_state.openai_model = default_openai_model
-
-if "questions" not in st.session_state:
-    st.session_state.questions = []
-
-if "answers" not in st.session_state:
-    st.session_state.answers = [""] * st.session_state.question_count
-
-if "answer_feedback" not in st.session_state:
-    st.session_state.answer_feedback = []
-
-if "finished" not in st.session_state:
-    st.session_state.finished = False
-
-if "show_results" not in st.session_state:
-    st.session_state.show_results = False
-
-if "total_cost" not in st.session_state:
-    st.session_state.total_cost = 0.0    
+initialize_session_state()
 
 st.title("🎤 Interview Simulator")
 
@@ -421,7 +452,7 @@ else:
         if st.session_state.show_results:
             feedback = safe_get(st.session_state.answer_feedback, step-1, "")
             st.markdown(f"**Your answer:**\n\n{saved_answer}")
-            st.markdown(f"**Feedback:**\n\n{feedback}")
+            show_feedback(feedback)
             button_pressed = render_buttons()
             button_actions(button_pressed)
         else:
