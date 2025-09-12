@@ -15,23 +15,12 @@ use_default_answers = True     # Set to True to use hard-coded answers (test mod
 class Questions(BaseModel):
     questions: List[str]
 
-class InvalidFeedback(BaseModel):
-    summary: str
-    guidance: str
-    class Config:
-        extra = "forbid"  # Disallow extra fields
-
-class ValidFeedback(BaseModel):
-    strengths: List[str]
-    improvements: List[str]
-    class Config:
-        extra = "forbid"  # Disallow extra fields
-
 class FeedbackResponse(BaseModel):
     answer_is_valid: bool
-    feedback: Union[InvalidFeedback, ValidFeedback]
-    class Config:
-        extra = "forbid"  # Disallow extra fields
+    guidance: str
+    strengths: List[str]
+    improvements: List[str]
+    class Config:      extra = "ignore"  # silently ignore unknown fields
 
 default_job_title = "Software Engineer"
 job_description_max_length=2000
@@ -105,7 +94,7 @@ def count_costs(response):
 
 def generate_questions(job_title: str, question_count: int, difficulty_level: str, openai_model: str, job_description: str) -> List[str]:
     if use_default_questions:
-        sleep(5)  # Simulate API call delay
+        # sleep(5)  # Simulate API call delay
         if use_default_answers:
             st.session_state.answers = DEFAULT_ANSWERS.copy()
         return DEFAULT_QUESTIONS
@@ -223,7 +212,7 @@ def generate_feedback(questions: List[str], answers: List[str], openai_model: st
                         Respond with ONLY a valid JSON object. The JSON should have exactly the following keys:
                         - "answer_is_valid": A boolean (true or false).
                         - "feedback": An object containing either:
-                            - "guidance" (if the answer is invalid), or
+                            - "guidance" (if the answer is invalid)
                             - "strengths" and "improvements" (if the answer is valid).
                         Do not include any additional fields.                    
                     
@@ -231,11 +220,14 @@ def generate_feedback(questions: List[str], answers: List[str], openai_model: st
                     {{
                         "answer_is_valid": false,
                         "guidance": "A proper answer should be a detailed example, ideally structured using the STAR method (Situation, Task, Action, Result) to describe the project, the learning process, and the successful outcome."
+                        "strengths": [],
+                        "improvements": []
                     }}
 
                     Example for a VALID answer:
                     {{
                         "answer_is_valid": true,
+                        "guidance": ""
                         "strengths": ["You effectively set the context for the project.", "Your description of the actions you took is clear and logical."],
                         "improvements": ["To make your 'Result' more impactful, try to add a quantifiable metric.", "Consider mentioning any alternative libraries you evaluated before making your choice."]
                     }}
@@ -255,23 +247,20 @@ def generate_feedback(questions: List[str], answers: List[str], openai_model: st
 
 def show_feedback(feedback: FeedbackResponse):
     if not feedback.answer_is_valid:
-        if isinstance(feedback.feedback, InvalidFeedback):
+        if len(feedback.guidance) > 0:
             st.error("Your answer is invalid.")
-            st.markdown(f"**Guidance:** {feedback.feedback.guidance}")
+            st.markdown(f"**Guidance:** {feedback.guidance}")
         else:
             st.error("Your answer is invalid, but no guidance provided.")
     else:
-        if isinstance(feedback.feedback, ValidFeedback):
-            if feedback.feedback.strengths:
-                st.markdown("**Strengths:**")
-                for strength in feedback.feedback.strengths:
-                    st.markdown(f"- {strength}")
-            if feedback.feedback.improvements:
-                st.markdown("**Improvements:**")
-                for improvement in feedback.feedback.improvements:
-                    st.markdown(f"- {improvement}")
-        else:
-            st.warning("Your answer is valid, but no detailed feedback provided.")
+        if feedback.strengths:
+            st.markdown("**Strengths:**")
+            for strength in feedback.strengths:
+                st.markdown(f"- {strength}")
+        if feedback.improvements:
+            st.markdown("**Improvements:**")
+            for improvement in feedback.improvements:
+                st.markdown(f"- {improvement}")
 
 def render_buttons() -> Dict[str, bool]:
     cols = st.columns([1,1,1])
