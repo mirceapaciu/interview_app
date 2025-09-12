@@ -220,14 +220,11 @@ def generate_feedback(questions: List[str], answers: List[str], openai_model: st
                     {{
                         "answer_is_valid": false,
                         "guidance": "A proper answer should be a detailed example, ideally structured using the STAR method (Situation, Task, Action, Result) to describe the project, the learning process, and the successful outcome."
-                        "strengths": [],
-                        "improvements": []
                     }}
 
                     Example for a VALID answer:
                     {{
                         "answer_is_valid": true,
-                        "guidance": ""
                         "strengths": ["You effectively set the context for the project.", "Your description of the actions you took is clear and logical."],
                         "improvements": ["To make your 'Result' more impactful, try to add a quantifiable metric.", "Consider mentioning any alternative libraries you evaluated before making your choice."]
                     }}
